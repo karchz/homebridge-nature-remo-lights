@@ -64,12 +64,10 @@ class NatureRemoLightDevice {
   }
 
   async setOnCharacteristicHandler(value, callback) {
+    let signal = value ? this.config.on : this.config.off
     const options = {
       method: 'POST',
-      url: `${BASE_URL}/1/appliances/${this.config.id}/light`,
-      form: {
-        button: value ? 'on' : 'off',
-      },
+      url: `${BASE_URL}/1/signals/${signal}/send`,
       headers: {
         Authorization: `Bearer ${this.config.accessToken}`,
       },
