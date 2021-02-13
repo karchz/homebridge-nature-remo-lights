@@ -1,8 +1,10 @@
 const request = require('request-promise-native');
+const fs = require('fs');
 
 let Service, Characteristic;
 
 const BASE_URL = 'https://api.nature.global';
+const TMP_DIR = '/tmp/nature-remo-lights-ext';
 
 module.exports = homebridge => {
   Service = homebridge.hap.Service;
@@ -19,6 +21,8 @@ class NatureRemoLightDevice {
   constructor(log, config, api) {
     this.log = log;
     this.config = config;
+    this.read = this.read.bind(this);
+    this.write = this.write.bind(this);
 
     if (api) {
       this.api = api;
@@ -44,23 +48,45 @@ class NatureRemoLightDevice {
   }
 
   async getOnCharacteristicHandler(callback) {
-    const options = {
-      url: `${BASE_URL}/1/appliances`,
-      headers: {
-        Authorization: `Bearer ${this.config.accessToken}`,
-      },
-    };
     let state = false;
-    try {
-      const responses = await request(options);
-      const device = JSON.parse(responses).filter(
-        res => res.id === this.config.id
-      )[0];
-      state = device.light.state.power === 'on';
-    } catch (e) {
-      this.log(e);
-    }
+    state = await this.read()
     callback(null, state);
+  }
+
+  async check(filePath) {
+    var isExist = false;
+    try {
+      fs.statSync(filePath);
+      isExist = true;
+    } catch(err) {
+      isExist = false;
+    }
+    return isExist;
+  }
+
+  async read(){
+    var content = new String();
+    var filePath = TMP_DIR+'/'+this.config.id;
+    if(this.check(filePath)) {
+      content = fs.readFileSync(filePath, 'utf8');
+      return content == 'on';
+    }
+    return false;
+  };
+
+  async write(stream){
+    var result = false;
+    var filePath = TMP_DIR+'/'+this.config.id;
+    try {
+      if(!this.check(TMP_DIR)) {
+        fs.mkdirSync(TMP_DIR)
+      }
+      fs.writeFileSync(TMP_DIR+'/'+this.config.id, stream);
+      return true;
+    } catch(err) {
+      console.log(err);
+      return false;
+    }
   }
 
   async setOnCharacteristicHandler(value, callback) {
@@ -72,6 +98,7 @@ class NatureRemoLightDevice {
         Authorization: `Bearer ${this.config.accessToken}`,
       },
     };
+    this.write(value?'on':'off')
     await request(options);
     callback(null);
   }
